@@ -1,0 +1,187 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+
+      .repo-viewer {
+        font-size: 20px;
+        font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+        margin: auto;
+        width: 500px;
+      }
+
+      .search {
+        font-size: 30px;
+        border-color: black;
+        width: 95%;
+        padding-left: 44px;
+      }
+
+      .results {
+        padding-left: 0px;
+      }
+
+      a {
+        text-decoration: none;
+        color: beige;
+      }
+      a:hover {
+        text-decoration: underline;
+        color: lightblue;
+      }
+      .repo-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        padding: 20px 0px 20px 25px;
+        margin: 20px 20px 20px 0px;
+        background-color: lightslategray;
+      }
+
+      .repo-image-container{
+          position: relative;
+          overflow: hidden;
+          border-radius: 50%;
+          width: 80px;
+          height: 80px;
+          margin-right: 100px;
+          margin-left: 20px;
+        }
+        .repo-image {
+            display: inline;
+            margin: 0 auto;
+            height: 100%;
+            width: auto;
+        }
+
+    </style>
+    <title>This is wonderful stuff.</title>
+  </head>
+  <body></body>
+  <script>
+    (function () {
+        'use strict'
+        const ORGANIZATION = 'theironyard'
+        const INITIAL_QUERY = 'slate'
+        const GITHUB_ACCESS_TOKEN = 'FAKE_ACCESS_TOKEN'
+
+        // BEGIN generic stuff
+
+        /**
+         * Helper to create some DOM, similar to hyperscript
+         * 
+         * @param {String} tagName 
+         * @param {String} text 
+         * @param {Object} attrs 
+         * @param {Array|Null} children 
+         */
+        const h = (tagName, text, attrs, children) => {
+            const el = document.createElement(tagName)
+            el.textContent = text
+            Object.keys(attrs).forEach(key => {
+                const value = attrs[key]
+                el.setAttribute(key, value)
+            })
+            ;[].forEach.call(children || [], child => el.appendChild(child))
+            return el
+        }
+
+        const toJson = res => {
+            if (!res.ok || !(res.status >= 200 && res.status <= 300)) {
+                return res.text().then(text => {
+                  throw new Error(`Bad response, got code: ${res.status}, text: ${text}`)
+                })
+            }
+            return res.json()
+        }
+
+        const EPOCH_START_DATE = new Date(0)
+        const debounce = (fn, delay) => {
+            let lastCallDate = EPOCH_START_DATE
+            return (...args) => {
+                let curDate = new Date()
+                const shouldSkip = new Date() - lastCallDate < delay
+                if (shouldSkip) {
+                return
+                }
+                lastCallDate = curDate
+                return fn.apply(null, args)
+            }
+        }
+
+        // END generic stuff
+
+        const render = state => {
+            if (!appEl) {
+                return
+            }
+            const resultsEl = appEl.querySelector('.results')
+            if (resultsEl) {
+                appEl.removeChild(resultsEl)
+            }
+            const repoEls = (state.repos || []).map(createRepoEl)
+            appEl.appendChild(h('ul', '', {'class': 'results'}, repoEls))
+        }
+
+        const createInitialDom = () => h('div', '', {class: 'repo-viewer'}, [
+            h('h1', 'Repo Viewer', {}, []),
+            h('input', '', {placeholder: 'Search for a repository', class: 'search'}),
+        ])
+
+        const createRepoEl = ({image, name, url}) => (
+            h('li', '', {class: 'repo-row'}, [
+              h('a', '', {href: url}, [
+                h('div', '', {class: 'repo-image-container'}, [
+                  h('img', '', {src: image, class: 'repo-image'})
+                 ])
+              ]),
+              h('a', name, {href: url}, [])
+            ])
+         )
+
+        const search = query => fetchRepos(query).then(repos => setState({repos}))
+
+        const handleSearchChange = e => {
+            const query = e.target.value
+            search(query)
+        }
+
+        // BEGIN data stuff
+
+        const cleanRepo = ({owner, full_name, html_url}) => {
+            return ({image: owner.avatar_url, name: full_name, url: html_url})
+        }
+
+        const fetchRepos = query =>
+                        fetch(`https://api.github.com/search/repositories?q=${query}&access_token=${GITHUB_ACCESS_TOKEN}`)
+                            .then(toJson)
+                            .then(data => data.items.map(cleanRepo))
+                            .catch(console.error)
+
+        // END data stuff
+
+        // BEGIN semi-globals: a bunch of functions access these
+        let appEl
+        const state = {repos: []}
+        const setState = updateObject => {
+            Object.assign(state, updateObject)
+            render(state)
+        }
+        // END semi-globals
+
+
+        const main = (rootEl) => {
+            appEl = createInitialDom()
+            rootEl.appendChild(appEl)
+            const searchEl = appEl.querySelector('.search')
+            searchEl.addEventListener('input', debounce(handleSearchChange, 200))
+            search(INITIAL_QUERY)
+
+        }
+
+        main(document.body)
+
+    })()
+
+  </script>
+</html>
